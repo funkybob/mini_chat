@@ -176,12 +176,15 @@ def chat(request, channel=None):
             return Response(get_template('chat.html'))
 
         pubsub = request.conn.pubsub()
-        pubsub.subscribe([])
+        pubsub.subscribe([
+            make_key(request.channel, 'channel'),
+            make_key(request.tag, 'private'),
+        ])
 
         def _iterator():
             sse = Sse()
             for msg in pubsub.listen():
-                if msg['type]'] == 'message':
+                if msg['type'] == 'message':
                     mode, data = json.loads(msg['data'])
                     sse.add_message(mode, data)
                     for item in sse:

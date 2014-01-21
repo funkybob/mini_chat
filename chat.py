@@ -17,12 +17,13 @@ pool = redis.ConnectionPool()
 
 # Rate limiting ?
 
+STATUS_OK = '200 OK'
+STATUS_NOT_FOUND = '404 Not Found'
+STATUS_METHOD_NOT_ALLOWD = '405 Method not allowed'
+
 RANDOM_CHARS = string.letters + string.digits
 def random_string(source=RANDOM_CHARS, length=32):
-    return ''.join([
-        random.choice(source)
-        for x in xrange(length)
-    ])
+    return ''.join(random.choice(source) for x in xrange(length))
 
 def get_template(name):
     fn = os.path.join('templates/', name)
@@ -135,10 +136,6 @@ class Response404(Response):
     def __init__(self, content=''):
         super(Response404, self).__init__(content, STATUS_NOT_FOUND)
 
-STATUS_OK = '200 OK'
-STATUS_NOT_FOUND = '404 Not Found'
-STATUS_METHOD_NOT_ALLOWD = '405 Method not allowed'
-
 def application(environ, start_response):
 
     request = Request(environ)
@@ -166,7 +163,7 @@ def application(environ, start_response):
         for cookie in response.cookies.values()
     ]
 
-    start_response(STATUS[response.status], headers)
+    start_response(response.status, headers)
     return response.content
 
 def index(request):

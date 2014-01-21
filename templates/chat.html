@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <link rel="shortcut icon" type="text/png" href="/static/img/favicon.png">
+        <link rel="stylesheet" type="text/css" href="/static/css/chatterbox.css">
+        <script src="/static/js/moment.min.js"></script>
+        <script src="/static/js/chatterbox.js"></script>
+    </head>
+    <body>
+        <header>
+            <img src="/static/img/banner.png">
+        </header>
+        <main>
+            <section id="messages"></section>
+            <section id="nicks">
+                <h2> Quick Help </h2>
+                <dl>
+                    <dt>/nick {new nick}</dt>
+                    <dd>Change your nickname</dd>
+                    <dt>/msg {nick} {message}</dt>
+                    <dd>Send a private message to {nick}</dd>
+                    <dt>/me {action}</dt>
+                    <dd>Perform an action</dd>
+                    <dt>Use &lt;tab&gt; to auto-complete nicks.</dt>
+                </dl>
+                <h2>Who's here?</h2>
+                <ul></ul>
+            </section>
+        </main>
+        <footer>
+            <div id="input">
+                <label> Message: <input type="text"> </label>
+            </div>
+        </footer>
+    </body>
+</html>

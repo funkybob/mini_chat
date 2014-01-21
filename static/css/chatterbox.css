@@ -1,0 +1,106 @@
+* {
+    -webkit-box-sizing: border-box; /* Safari/Chrome, other WebKit */
+    -moz-box-sizing: border-box;    /* Firefox, other Gecko */
+    box-sizing: border-box;         /* Opera/IE 8+ */
+}
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    font-family: sans-serif;
+}
+
+h1 {
+    font-size: 1em;
+    height: 30px;
+    vertical-align: top;
+}
+
+h2 {
+    font-size: 1em;
+    line-height: 1.5em;
+    border-radius: 3px;
+    margin: 0.2em;
+}
+
+/* Basic 3 stacked box layout */
+header {
+    background: linear-gradient(#1faac9, #b6dce5);
+    height: 30px;
+    text-align: right;
+    padding: 0 1em;
+}
+main {
+    height: calc(100% - 60px);
+    padding-top: 1em;
+}
+footer {
+    height: 30px;
+    line-height: 30px;
+}
+
+/* side-by-side lists */
+#messages {
+    width: calc(100% - 200px - 0.5em);
+    display: inline-block;
+    height: 100%;
+    vertical-align: bottom;
+    overflow: auto;
+}
+#nicks {
+    width: 200px;
+    display: inline-block;
+    height: 100%;
+}
+#nicks header {
+    height: 24px;
+    text-align: left;
+    color: #333;
+    border-radius: 3px;
+}
+#nicks ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    line-height: 1.5em;
+}
+#nicks li {
+    background-color: #e5e5e5;
+    margin: 0.2em 0;
+    padding: 0 0.2em;
+    border-radius: 3px;
+}
+
+.message {
+    margin: 0;
+    display: flex;
+    flex-flow: row nowrap;
+    align-items: flex-start;
+    line-height: 1.5em;
+}
+.message.note { color: #b6dce5; }
+.message.action { color: #1faac9; }
+.message.join { color: green; }
+.message.msg { color: orange; }
+
+.message > * {
+    display: block;
+    background-color: #e5e5e5;
+    margin: 0.2em;
+    padding: 0 0.2em;
+    border-radius: 3px;
+}
+.message > time { flex: 0 0 5em; }
+.message > span { flex: 0 0 10em; text-align: right; }
+.message > p { flex: 1 1 100%; display: inline-block; overflow-wrap: break-word; }
+
+#input input {
+    width: 80%;
+    border: solid grey 2px;
+    border-radius: 3px;
+}
+
+.ready { border-color: green !important; }
+.connecting { border-color: blue !important; }
+.disconnected { border-color: red !important; }
+.error { border-color: orange !important; }

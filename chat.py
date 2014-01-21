@@ -121,7 +121,7 @@ class Request(object):
             self.QUERY_DATA = parse_qs(environ.get('QUERY_STRING', ''))
 
 class Response(object):
-    def __init__(self, content='', status=200, content_type='text/html'):
+    def __init__(self, content='', status=STATUS_OK, content_type='text/html'):
         self.content = content
         self.status = status
         self.headers = {}
@@ -133,12 +133,11 @@ class Response(object):
 
 class Response404(Response):
     def __init__(self, content=''):
-        super(Response404, self).__init__(content, 404)
+        super(Response404, self).__init__(content, STATUS_NOT_FOUND)
 
-STATUS = {
-    200: '200 OK',
-    404: '404 Not Found',
-}
+STATUS_OK = '200 OK'
+STATUS_NOT_FOUND = '404 Not Found'
+STATUS_METHOD_NOT_ALLOWD = '405 Method not allowed'
 
 def application(environ, start_response):
 
@@ -167,7 +166,7 @@ def application(environ, start_response):
         for cookie in response.cookies.values()
     ]
 
-    start_response(STATUS[response.status], response.headers.items())
+    start_response(STATUS[response.status], headers)
     return response.content
 
 def index(request):
@@ -245,7 +244,7 @@ def chat(request, channel=None):
         response = Response()
 
     else:
-        response = Response('', status=405)
+        response = Response('', status=STATUS_METHOD_NOT_ALLOWED)
 
     return response
 

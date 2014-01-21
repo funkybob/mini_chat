@@ -60,7 +60,7 @@ def get_nick(request):
 
 def set_nick(request, name):
     name = strip_tags(name)
-    names = get_nicks(request).keys()
+    names = get_nicks(request).values()
     if name in names:
         raise ValueError('Nick in use!')
     key = make_key(request.channel, request.tag, 'nick')
@@ -98,6 +98,7 @@ def clean_message(msg):
 class Request(object):
     def __init__(self, environ):
         self.environ = environ
+        self.method = environ['REQUEST_METHOD']
 
         cookies = environ.get('HTTP_COOKIE', '')
         if cookies == '':
@@ -110,8 +111,15 @@ class Request(object):
                 for key in c.keys()
             }
         self.cookies = cookies
-        self.QUERY_DATA = parse_qs(environ.get('QUERY_STRING', ''))
-        self.method = environ['REQUEST_METHOD']
+        if self.method == 'POST':
+            # Should test content type
+            size = int(environ.get('CONTENT_LENGTH', 0))
+            if size:
+                self.QUERY_DATA = parse_qs(environ['wsgi.input'].read(size))
+            else:
+                self.QUERY_DATA = {}
+        elif self.method == 'GET':
+            self.QUERY_DATA = parse_qs(environ.get('QUERY_STRING', ''))
 
 class Response(object):
     def __init__(self, content='', status=200, content_type='text/html'):
@@ -188,7 +196,7 @@ def chat(request, channel=None):
                     mode, data = json.loads(msg['data'])
                     sse.add_message(mode, data)
                     for item in sse:
-                        yield item
+                        yield bytes(item.encode('utf-8'))
 
         post_message(request, '{} connected.'.format(get_nick(request)), 'join', sender='Notice')
 
@@ -199,8 +207,8 @@ def chat(request, channel=None):
 
         nick = get_nick(request)
 
-        mode = request.QUERY_DATA.get('mode', 'message')
-        msg = request.QUERY_DATA.get('msg', '')
+        mode = request.QUERY_DATA.get('mode', ['message'])[0]
+        msg = request.QUERY_DATA.get('message', [''])[0]
 
         if mode == 'nick' and msg:
             try:
@@ -214,18 +222,18 @@ def chat(request, channel=None):
                 )
 
         elif mode == 'names':
-            post_message(request, get_nicks(request).keys(), 'names')
+            post_message(request, get_nicks(request).values(), 'names')
 
         elif mode == 'msg':
-            target = request.QUERY_DATA['target']
-            nicks = self.get_nicks(request)
+            target = request.QUERY_DATA['target'][0]
+            nicks = get_nicks(request)
             nick_map = { v: k for k, v in nicks.items() }
             msg = clean_message(msg)
             _, target_tag, _ = nick_map[target].split(':')
             post_message(request, msg, 'msg', target=target,
                 queue=make_key(target_tag, 'private')
             )
-            post_message(request, 'msg', target=target,
+            post_message(request, msg, 'msg', target=target,
                 queue=make_key(request.tag, 'private')
             )
 
@@ -233,7 +241,7 @@ def chat(request, channel=None):
             post_message(request, clean_message(msg), mode)
 
         else:
-            log.warning('Unknown message: %r', mode)
+            print('Unknown message: %r', mode)
 
         response = Response()
 

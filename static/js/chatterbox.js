@@ -83,7 +83,7 @@ var ChatterBox = (function () {
 
     modemap['open'] = function (event) {
         setStatus('ready');
-        send('', 'ping');
+        send('', 'names');
     };
 
     modemap['error'] = function (event) {

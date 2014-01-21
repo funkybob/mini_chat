@@ -1,18 +1,17 @@
+
+from Cookie import SimpleCookie
+from functools import partial
 import json
+import mimetypes
+import os.path
 import random
 import re
 import string
-import os.path
-from functools import partial
-import mimetypes
-
+from urlparse import parse_qs
 
 import bleach
 import redis
 from sse import Sse
-
-from urlparse import parse_qs
-from Cookie import SimpleCookie
 
 pool = redis.ConnectionPool()
 

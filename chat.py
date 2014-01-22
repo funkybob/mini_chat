@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 
 from Cookie import SimpleCookie
 from functools import partial
@@ -127,7 +128,7 @@ class App(object):
         ]
 
         start_response(response.status, headers)
-        return response.content
+        return bytes(response.content.encode('utf-8'))
 
     def parse_cookies(self):
         cookies = self.environ.get('HTTP_COOKIE', '')

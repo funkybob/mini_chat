@@ -33,14 +33,10 @@ def get_template(name):
     with file(fn, 'rb') as fin:
         return fin.read()
 
-##
+# Nick handling
 
 def make_key(*args):
     return u':'.join(args)
-
-##
-## Nick handling
-##
 
 def get_nicks(request):
     keys = request.conn.keys(make_key(request.channel, '*', 'nick'))
@@ -60,16 +56,13 @@ def get_nick(request):
 
 def set_nick(request, name):
     name = strip_tags(name)
-    names = get_nicks(request)
-    if name in names:
+    if name in get_nicks(request):
         raise ValueError('Nick in use!')
     key = make_key(request.channel, request.tag, 'nick')
     request.conn.set(key, name, ex=90)
     return name
 
-##
-## Message handling
-##
+# Message handling
 
 def post_message(request, message, mode='message', queue=None, **data):
     if queue is None:
@@ -103,8 +96,6 @@ class Response(object):
         self.headers['Content-Type'] = content_type
         self.cookies = SimpleCookie()
 
-    def add_cookie(self, key, value, **kwargs):
-        self.cookies[key] = value
 
 class App(object):
     def __init__(self, patterns):
@@ -112,17 +103,14 @@ class App(object):
 
     def __call__(self, environ, start_response):
         self.environ = environ
-        self.start_response = start_response
 
         self.method = environ['REQUEST_METHOD']
+        self.path = environ.get('PATH_INFO', '/')
 
         self.cookies = self.parse_cookies()
-
         self.QUERY_DATA = self.parse_query_data()
 
         self.before_dispatch()
-
-        self.path = environ.get('PATH_INFO', '/')
 
         # Dispatch
         response = Response(status=STATUS_NOT_FOUND)
@@ -162,12 +150,11 @@ class App(object):
 
     def before_dispatch(self):
         tag = self.cookies.get('chatterbox')
-        if not tag:
+        self.set_tag = bool(tag)
+        if self.set_tag:
             self.tag = random_string()
-            self.set_tag = True
         else:
             self.tag = tag
-            self.set_tag = False
 
     def after_dispatch(self, response):
         if self.set_tag:

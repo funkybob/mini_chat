@@ -13,6 +13,9 @@ import bleach
 import redis
 from sse import Sse
 
+import logging
+log = logging.getLogger(__name__)
+
 pool = redis.ConnectionPool()
 
 # Rate limiting ?
@@ -43,10 +46,7 @@ def get_nicks(request):
     keys = request.conn.keys(make_key(request.channel, '*', 'nick'))
     if not keys:
         return {}
-    return {
-        key: value
-        for key, value in zip(keys, request.conn.mget(keys))
-    }
+    return dict(zip(request.conn.mget(keys), keys))
 
 def get_nick(request):
     key = make_key(request.channel, request.tag, 'nick')
@@ -60,7 +60,7 @@ def get_nick(request):
 
 def set_nick(request, name):
     name = strip_tags(name)
-    names = get_nicks(request).values()
+    names = get_nicks(request)
     if name in names:
         raise ValueError('Nick in use!')
     key = make_key(request.channel, request.tag, 'nick')
@@ -106,10 +106,6 @@ class Response(object):
     def add_cookie(self, key, value, **kwargs):
         self.cookies[key] = value
 
-class Response404(Response):
-    def __init__(self, content=''):
-        super(Response404, self).__init__(content, STATUS_NOT_FOUND)
-
 class App(object):
     def __init__(self, patterns):
         self.patterns = patterns
@@ -129,7 +125,7 @@ class App(object):
         self.path = environ.get('PATH_INFO', '/')
 
         # Dispatch
-        response = Response404()
+        response = Response(status=STATUS_NOT_FOUND)
         for pattern in self.patterns:
             m = re.match(pattern[0], self.path)
             if m:
@@ -152,10 +148,7 @@ class App(object):
         else:
             c = SimpleCookie()
             c.load(cookies)
-            return {
-                key: c.get(key).value
-                for key in c.keys()
-            }
+            return { key: c.get(key).value for key in c.keys() }
 
     def parse_query_data(self):
         if self.method == 'GET':
@@ -231,14 +224,13 @@ def chat(request, channel=None):
                 )
 
         elif mode == 'names':
-            post_message(request, get_nicks(request).values(), 'names')
+            post_message(request, get_nicks(request).keys(), 'names')
 
         elif mode == 'msg':
             target = request.QUERY_DATA['target'][0]
             nicks = get_nicks(request)
-            nick_map = { v: k for k, v in nicks.items() }
             msg = clean_message(msg)
-            _, target_tag, _ = nick_map[target].split(':')
+            _, target_tag, _ = nicks[target].split(':')
             post_message(request, msg, 'msg', target=target,
                 queue=make_key(target_tag, 'private')
             )
@@ -250,7 +242,7 @@ def chat(request, channel=None):
             post_message(request, clean_message(msg), mode)
 
         else:
-            print('Unknown message: %r', mode)
+            log.warning('Unknown message: %r', mode)
 
         response = Response()
 
@@ -264,10 +256,9 @@ def static(request, filename):
         fin = open(os.path.join('static/', filename), 'rb')
         content_type, encoding = mimetypes.guess_type(filename)
         content_type = content_type or 'application/octet-stream'
-
         return Response(fin.read(), content_type=content_type)
     except:
-        return Response404()
+        return Response(status=STATUS_NOT_FOUND)
 
 urlpatterns = [
     (r'^/$', index, ),

@@ -95,32 +95,6 @@ def clean_message(msg):
 ## The application!
 ##
 
-class Request(object):
-    def __init__(self, environ):
-        self.environ = environ
-        self.method = environ['REQUEST_METHOD']
-
-        cookies = environ.get('HTTP_COOKIE', '')
-        if cookies == '':
-            cookies = {}
-        else:
-            c = SimpleCookie()
-            c.load(cookies)
-            cookies = {
-                key: c.get(key).value
-                for key in c.keys()
-            }
-        self.cookies = cookies
-        if self.method == 'POST':
-            # Should test content type
-            size = int(environ.get('CONTENT_LENGTH', 0))
-            if size:
-                self.QUERY_DATA = parse_qs(environ['wsgi.input'].read(size))
-            else:
-                self.QUERY_DATA = {}
-        elif self.method == 'GET':
-            self.QUERY_DATA = parse_qs(environ.get('QUERY_STRING', ''))
-
 class Response(object):
     def __init__(self, content='', status=STATUS_OK, content_type='text/html'):
         self.content = content
@@ -136,35 +110,75 @@ class Response404(Response):
     def __init__(self, content=''):
         super(Response404, self).__init__(content, STATUS_NOT_FOUND)
 
-def application(environ, start_response):
+class App(object):
+    def __init__(self, patterns):
+        self.patterns = patterns
 
-    request = Request(environ)
+    def __call__(self, environ, start_response):
+        self.environ = environ
+        self.start_response = start_response
 
-    chatterbox_tag = request.cookies.get('chatterbox')
-    if not chatterbox_tag:
-        request.tag = random_string()
-    else:
-        request.tag = chatterbox_tag
+        self.method = environ['REQUEST_METHOD']
 
-    path = environ.get('PATH_INFO', '/')
+        self.cookies = self.parse_cookies()
 
-    # Dispatch
-    response = Response404()
-    for pattern in urlpatterns:
-        m = re.match(pattern[0], path)
-        if m:
-            response = pattern[1](request, **m.groupdict())
+        self.QUERY_DATA = self.parse_query_data()
 
-    if not chatterbox_tag:
-        response.cookies['chatterbox'] = request.tag
+        self.before_dispatch()
 
-    headers = list(response.headers.items()) + [
-        ('Set-Cookie', cookie.OutputString())
-        for cookie in response.cookies.values()
-    ]
+        self.path = environ.get('PATH_INFO', '/')
 
-    start_response(response.status, headers)
-    return response.content
+        # Dispatch
+        response = Response404()
+        for pattern in self.patterns:
+            m = re.match(pattern[0], self.path)
+            if m:
+                response = pattern[1](self, **m.groupdict())
+
+        self.after_dispatch(response)
+
+        headers = list(response.headers.items()) + [
+            ('Set-Cookie', cookie.OutputString())
+            for cookie in response.cookies.values()
+        ]
+
+        start_response(response.status, headers)
+        return response.content
+
+    def parse_cookies(self):
+        cookies = self.environ.get('HTTP_COOKIE', '')
+        if cookies == '':
+            return {}
+        else:
+            c = SimpleCookie()
+            c.load(cookies)
+            return {
+                key: c.get(key).value
+                for key in c.keys()
+            }
+
+    def parse_query_data(self):
+        if self.method == 'GET':
+            return parse_qs(self.environ.get('QUERY_STRING', ''))
+        elif self.method == 'POST':
+            # Should test content type
+            size = int(self.environ.get('CONTENT_LENGTH', 0))
+            if not size:
+                return {}
+            return parse_qs(self.environ['wsgi.input'].read(size))
+
+    def before_dispatch(self):
+        tag = self.cookies.get('chatterbox')
+        if not tag:
+            self.tag = random_string()
+            self.set_tag = True
+        else:
+            self.tag = tag
+            self.set_tag = False
+
+    def after_dispatch(self, response):
+        if self.set_tag:
+            response.cookies['chatterbox'] = self.tag
 
 def index(request):
     return Response(get_template('index.html'))
@@ -261,3 +275,4 @@ urlpatterns = [
     (r'^/(?P<channel>.+)/$', chat, ),
 ]
 
+application = App(urlpatterns)

@@ -23,7 +23,7 @@ pool = redis.ConnectionPool()
 
 STATUS_OK = '200 OK'
 STATUS_NOT_FOUND = '404 Not Found'
-STATUS_METHOD_NOT_ALLOWD = '405 Method not allowed'
+STATUS_METHOD_NOT_ALLOWED = '405 Method not allowed'
 
 RANDOM_CHARS = string.letters + string.digits
 def random_string(source=RANDOM_CHARS, length=32):

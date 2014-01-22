@@ -30,8 +30,7 @@ def random_string(source=RANDOM_CHARS, length=32):
     return ''.join(random.choice(source) for x in xrange(length))
 
 def get_template(name):
-    fn = os.path.join('templates/', name)
-    with file(fn, 'rb') as fin:
+    with file(os.path.join('templates/', name), 'rb') as fin:
         return fin.read()
 
 # Nick handling
@@ -41,9 +40,7 @@ def make_key(*args):
 
 def get_nicks(request):
     keys = request.conn.keys(make_key(request.channel, '*', 'nick'))
-    if not keys:
-        return {}
-    return dict(zip(request.conn.mget(keys), keys))
+    return dict(zip(request.conn.mget(keys), keys)) if keys else {}
 
 def get_nick(request):
     key = make_key(request.channel, request.tag, 'nick')
@@ -81,13 +78,7 @@ def linkify_external(attrs, new=False):
     attrs['target'] = '_blank'
     return attrs
 
-def clean_message(msg):
-    '''Clean up and process messages before sending'''
-    return bleach.linkify(strip_tags(msg), callbacks=[linkify_external,])
-
-##
-## The application!
-##
+# The application!
 
 class Response(object):
     def __init__(self, content='', status=STATUS_OK, content_type='text/html'):
@@ -111,7 +102,11 @@ class App(object):
         self.cookies = self.parse_cookies()
         self.QUERY_DATA = self.parse_query_data()
 
-        self.before_dispatch()
+        tag = self.cookies.get('chatterbox')
+        if tag:
+            self.tag = random_string()
+        else:
+            self.tag = tag
 
         # Dispatch
         response = Response(status=STATUS_NOT_FOUND)
@@ -120,7 +115,8 @@ class App(object):
             if m:
                 response = pattern[1](self, **m.groupdict())
 
-        self.after_dispatch(response)
+        if not tag:
+            response.cookies['chatterbox'] = self.tag
 
         headers = list(response.headers.items()) + [
             ('Set-Cookie', cookie.OutputString())
@@ -148,18 +144,6 @@ class App(object):
             if not size:
                 return {}
             return parse_qs(self.environ['wsgi.input'].read(size))
-
-    def before_dispatch(self):
-        tag = self.cookies.get('chatterbox')
-        self.set_tag = bool(tag)
-        if self.set_tag:
-            self.tag = random_string()
-        else:
-            self.tag = tag
-
-    def after_dispatch(self, response):
-        if self.set_tag:
-            response.cookies['chatterbox'] = self.tag
 
 def index(request):
     return Response(get_template('index.html'))
@@ -199,6 +183,7 @@ def chat(request, channel=None):
 
         mode = request.QUERY_DATA.get('mode', ['message'])[0]
         msg = request.QUERY_DATA.get('message', [''])[0]
+        msg = bleach.linkify(strip_tags(msg), callbacks=[linkify_external,])
 
         if mode == 'nick' and msg:
             try:
@@ -217,7 +202,6 @@ def chat(request, channel=None):
         elif mode == 'msg':
             target = request.QUERY_DATA['target'][0]
             nicks = get_nicks(request)
-            msg = clean_message(msg)
             _, target_tag, _ = nicks[target].split(':')
             post_message(request, msg, 'msg', target=target,
                 queue=make_key(target_tag, 'private')
@@ -227,7 +211,7 @@ def chat(request, channel=None):
             )
 
         elif mode in ['message', 'action']:
-            post_message(request, clean_message(msg), mode)
+            post_message(request, msg, mode)
 
         else:
             log.warning('Unknown message: %r', mode)

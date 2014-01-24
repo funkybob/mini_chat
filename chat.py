@@ -13,7 +13,6 @@ from urlparse import parse_qs
 
 import bleach
 import redis
-from sse import Sse
 
 import logging
 log = logging.getLogger(__name__)
@@ -108,14 +107,14 @@ class App(object):
         self.conn = redis.StrictRedis(connection_pool=pool)
 
         tag = self.cookies.get('chatterbox')
-        if tag:
+        if not tag:
             self.tag = random_string()
         else:
             self.tag = tag
 
         # Rate limiting
-        key = make_key(tag, 'rated')
-        now = time.time()
+        key = make_key(self.tag, 'rated')
+        now = int(time.time())
         pipe = self.conn.pipeline(transaction=False)
         pipe.zadd(key, now, now)
         pipe.expireat(key, now + RATE_LIMIT_DURATION)
@@ -142,7 +141,7 @@ class App(object):
         ]
 
         start_response(response.status, headers)
-        return bytes(response.content.encode('utf-8'))
+        return response.content
 
     def parse_cookies(self):
         cookies = self.environ.get('HTTP_COOKIE', '')
@@ -180,13 +179,13 @@ def chat(request, channel=None):
         ])
 
         def _iterator():
-            sse = Sse()
             for msg in pubsub.listen():
                 if msg['type'] == 'message':
                     mode, data = json.loads(msg['data'])
-                    sse.add_message(mode, data)
-                    for item in sse:
-                        yield bytes(item.encode('utf-8'))
+                    yield 'event: {}\n'.format(mode).encode('utf-8')
+                    for line in data.splitlines():
+                        yield 'data: {}\n'.format(line).encode('utf-8')
+                    yield '\n'.encode('utf-8')
 
         post_message(request, '{} connected.'.format(get_nick(request)), 'join', sender='Notice')
 
@@ -235,7 +234,7 @@ def chat(request, channel=None):
         response = Response()
 
     else:
-        response = Response('', status=STATUS_METHOD_NOT_ALLOWED)
+        response = Response(status=STATUS_METHOD_NOT_ALLOWED)
 
     return response
 

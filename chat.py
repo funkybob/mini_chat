@@ -8,6 +8,7 @@ import os.path
 import random
 import re
 import string
+import time
 from urlparse import parse_qs
 
 import bleach
@@ -19,11 +20,13 @@ log = logging.getLogger(__name__)
 
 pool = redis.ConnectionPool()
 
-# Rate limiting ?
+RATE_LIMIT_DURATION = 60
+RATE_LIMIT = 10
 
 STATUS_OK = '200 OK'
 STATUS_NOT_FOUND = '404 Not Found'
 STATUS_METHOD_NOT_ALLOWED = '405 Method not allowed'
+STATUS_RATE_LIMITED = '429 Too Many Requests'
 
 RANDOM_CHARS = string.letters + string.digits
 def random_string(source=RANDOM_CHARS, length=32):
@@ -102,18 +105,33 @@ class App(object):
         self.cookies = self.parse_cookies()
         self.QUERY_DATA = self.parse_query_data()
 
+        self.conn = redis.StrictRedis(connection_pool=pool)
+
         tag = self.cookies.get('chatterbox')
         if tag:
             self.tag = random_string()
         else:
             self.tag = tag
 
-        # Dispatch
-        response = Response(status=STATUS_NOT_FOUND)
-        for pattern in self.patterns:
-            m = re.match(pattern[0], self.path)
-            if m:
-                response = pattern[1](self, **m.groupdict())
+        # Rate limiting
+        key = make_key(tag, 'rated')
+        now = time.time()
+        pipe = self.conn.pipeline(transaction=False)
+        pipe.zadd(key, now, now)
+        pipe.expireat(key, now + RATE_LIMIT_DURATION)
+        pipe.zremrangebyscore(key, '-inf', now - RATE_LIMIT_DURATION)
+        pipe.zcard(key)
+        size = pipe.execute()[-1]
+        if size > RATE_LIMIT:
+            response = Response(status=STATUS_RATE_LIMITED)
+
+        else:
+            # Dispatch
+            response = Response(status=STATUS_NOT_FOUND)
+            for pattern in self.patterns:
+                m = re.match(pattern[0], self.path)
+                if m:
+                    response = pattern[1](self, **m.groupdict())
 
         if not tag:
             response.cookies['chatterbox'] = self.tag
@@ -150,8 +168,6 @@ def index(request):
 
 def chat(request, channel=None):
     request.channel = channel
-
-    request.conn = redis.StrictRedis(connection_pool=pool)
 
     if request.method == 'GET':
         if not 'text/event-stream' in request.environ['HTTP_ACCEPT']:

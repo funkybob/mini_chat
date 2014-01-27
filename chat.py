@@ -15,7 +15,6 @@ import bleach
 import redis
 
 import logging
-log = logging.getLogger(__name__)
 
 pool = redis.ConnectionPool()
 
@@ -26,10 +25,6 @@ STATUS_OK = '200 OK'
 STATUS_NOT_FOUND = '404 Not Found'
 STATUS_METHOD_NOT_ALLOWED = '405 Method not allowed'
 STATUS_RATE_LIMITED = '429 Too Many Requests'
-
-RANDOM_CHARS = string.letters + string.digits
-def random_string(source=RANDOM_CHARS, length=32):
-    return ''.join(random.choice(source) for x in xrange(length))
 
 def get_template(name):
     with file(os.path.join('templates/', name), 'rb') as fin:
@@ -82,20 +77,8 @@ def linkify_external(attrs, new=False):
 
 # The application!
 
-class Response(object):
-    def __init__(self, content='', status=STATUS_OK, content_type='text/html'):
-        self.content = content
-        self.status = status
-        self.headers = {}
-        self.headers['Content-Type'] = content_type
-        self.cookies = SimpleCookie()
-
-
-class App(object):
-    def __init__(self, patterns):
-        self.patterns = patterns
-
-    def __call__(self, environ, start_response):
+class Request(object):
+    def __init__(self, environ):
         self.environ = environ
 
         self.method = environ['REQUEST_METHOD']
@@ -105,43 +88,6 @@ class App(object):
         self.QUERY_DATA = self.parse_query_data()
 
         self.conn = redis.StrictRedis(connection_pool=pool)
-
-        tag = self.cookies.get('chatterbox')
-        if not tag:
-            self.tag = random_string()
-        else:
-            self.tag = tag
-
-        # Rate limiting
-        key = make_key(self.tag, 'rated')
-        now = int(time.time())
-        pipe = self.conn.pipeline(transaction=False)
-        pipe.zadd(key, now, now)
-        pipe.expireat(key, now + RATE_LIMIT_DURATION)
-        pipe.zremrangebyscore(key, '-inf', now - RATE_LIMIT_DURATION)
-        pipe.zcard(key)
-        size = pipe.execute()[-1]
-        if size > RATE_LIMIT:
-            response = Response(status=STATUS_RATE_LIMITED)
-
-        else:
-            # Dispatch
-            response = Response(status=STATUS_NOT_FOUND)
-            for pattern in self.patterns:
-                m = re.match(pattern[0], self.path)
-                if m:
-                    response = pattern[1](self, **m.groupdict())
-
-        if not tag:
-            response.cookies['chatterbox'] = self.tag
-
-        headers = list(response.headers.items()) + [
-            ('Set-Cookie', cookie.OutputString())
-            for cookie in response.cookies.values()
-        ]
-
-        start_response(response.status, headers)
-        return response.content
 
     def parse_cookies(self):
         cookies = self.environ.get('HTTP_COOKIE', '')
@@ -161,6 +107,55 @@ class App(object):
             if not size:
                 return {}
             return parse_qs(self.environ['wsgi.input'].read(size))
+
+
+class Response(object):
+    def __init__(self, content=None, status=STATUS_OK, content_type='text/html'):
+        self.content = content or ''
+        self.status = status
+        self.headers = {}
+        self.headers['Content-Type'] = content_type
+        self.cookies = SimpleCookie()
+
+
+def application(environ, start_response):
+    request = Request(environ)
+
+    tag = request.cookies.get('chatterbox')
+    if not tag:
+        request.tag = ''.join(random.choice(string.letters + string.digits) for x in xrange(16))
+    else:
+        request.tag = tag
+
+    # Rate limiting
+    key = make_key(request.tag, 'rated')
+    now = int(time.time())
+    pipe = request.conn.pipeline(transaction=False)
+    pipe.zadd(key, now, now).expireat(key, now + RATE_LIMIT_DURATION)
+    pipe.zremrangebyscore(key, '-inf', now - RATE_LIMIT_DURATION)
+    size = pipe.zcard(key).execute()[-1]
+    if size > RATE_LIMIT:
+        response = Response(status=STATUS_RATE_LIMITED)
+
+    else:
+        # Dispatch
+        response = Response(status=STATUS_NOT_FOUND)
+        for pattern in urlpatterns:
+            m = re.match(pattern[0], request.path)
+            if m:
+                response = pattern[1](request, **m.groupdict())
+
+    if not tag:
+        response.cookies['chatterbox'] = request.tag
+
+    headers = list(response.headers.items()) + [
+        ('Set-Cookie', cookie.OutputString())
+        for cookie in response.cookies.values()
+    ]
+
+    start_response(response.status, headers)
+    return response.content
+
 
 def index(request):
     return Response(get_template('index.html'))
@@ -229,7 +224,7 @@ def chat(request, channel=None):
             post_message(request, msg, mode)
 
         else:
-            log.warning('Unknown message: %r', mode)
+            logging.warning('Unknown message: %r', mode)
 
         response = Response()
 
@@ -253,4 +248,3 @@ urlpatterns = [
     (r'^/(?P<channel>.+)/$', chat, ),
 ]
 
-application = App(urlpatterns)

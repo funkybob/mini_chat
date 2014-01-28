@@ -1,4 +1,3 @@
-from __future__ import unicode_literals
 
 from Cookie import SimpleCookie
 from functools import partial
@@ -147,6 +146,7 @@ def application(environ, start_response):
 
     if not tag:
         response.cookies['chatterbox'] = request.tag
+        response.cookies['chatterbox']['path'] = '/'
 
     headers = list(response.headers.items()) + [
         ('Set-Cookie', cookie.OutputString())
@@ -177,10 +177,10 @@ def chat(request, channel=None):
             for msg in pubsub.listen():
                 if msg['type'] == 'message':
                     mode, data = json.loads(msg['data'])
-                    yield 'event: {}\n'.format(mode).encode('utf-8')
+                    yield u'event: {}\n'.format(mode).encode('utf-8')
                     for line in data.splitlines():
-                        yield 'data: {}\n'.format(line).encode('utf-8')
-                    yield '\n'.encode('utf-8')
+                        yield u'data: {}\n'.format(line).encode('utf-8')
+                    yield u'\n'.encode('utf-8')
 
         post_message(request, '{} connected.'.format(get_nick(request)), 'join', sender='Notice')
 

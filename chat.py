@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 
 from Cookie import SimpleCookie
 from functools import partial
@@ -120,7 +121,7 @@ class Response(object):
 def application(environ, start_response):
     request = Request(environ)
 
-    tag = request.cookies.get('chatterbox')
+    tag = request.cookies.get(b'chatterbox')
     if not tag:
         request.tag = ''.join(random.choice(string.letters + string.digits) for x in xrange(16))
     else:
@@ -145,7 +146,7 @@ def application(environ, start_response):
                 response = pattern[1](request, **m.groupdict())
 
     if not tag:
-        response.cookies['chatterbox'] = request.tag
+        response.cookies[b'chatterbox'] = request.tag.encode('utf-8')
         response.cookies['chatterbox']['path'] = '/'
 
     headers = list(response.headers.items()) + [

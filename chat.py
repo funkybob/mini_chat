@@ -16,7 +16,7 @@ import redis
 
 import logging
 
-pool = redis.ConnectionPool()
+POOL = redis.ConnectionPool()
 
 RATE_LIMIT_DURATION = 60
 RATE_LIMIT = 10
@@ -41,13 +41,12 @@ def get_nicks(request):
 
 def get_nick(request):
     key = make_key(request.channel, request.tag, 'nick')
-    n = request.conn.get(key)
-    if n is None:
-        n = request.tag[:8]
-        set_nick(request, n)
+    nick = request.conn.get(key)
+    if nick is None:
+        nick = set_nick(request, request.tag[:8])
     else:
         request.conn.expire(key, 90)
-    return n
+    return nick
 
 def set_nick(request, name):
     name = strip_tags(name)
@@ -85,18 +84,18 @@ class Request(object):
         self.path = environ.get('PATH_INFO', '/')
 
         self.cookies = self.parse_cookies()
-        self.QUERY_DATA = self.parse_query_data()
+        self.query_data = self.parse_query_data()
 
-        self.conn = redis.StrictRedis(connection_pool=pool)
+        self.conn = redis.StrictRedis(connection_pool=POOL)
 
     def parse_cookies(self):
-        cookies = self.environ.get('HTTP_COOKIE', '')
-        if cookies == '':
+        cookie_data = self.environ.get('HTTP_COOKIE', '')
+        if cookie_data == '':
             return {}
         else:
-            c = SimpleCookie()
-            c.load(cookies)
-            return { key: c.get(key).value for key in c.keys() }
+            cookies = SimpleCookie()
+            cookies.load(cookie_data)
+            return { key: cookies.get(key).value for key in cookies.keys() }
 
     def parse_query_data(self):
         if self.method == 'GET':
@@ -110,11 +109,11 @@ class Request(object):
 
 
 class Response(object):
-    def __init__(self, content=None, status=STATUS_OK, content_type='text/html'):
+    def __init__(self, content=None, status=STATUS_OK, content_type=None):
         self.content = content or ''
         self.status = status
         self.headers = {}
-        self.headers['Content-Type'] = content_type
+        self.headers['Content-Type'] = content_type or 'text/html'
         self.cookies = SimpleCookie()
 
 
@@ -123,7 +122,8 @@ def application(environ, start_response):
 
     tag = request.cookies.get(b'chatterbox')
     if not tag:
-        request.tag = ''.join(random.choice(string.letters + string.digits) for x in xrange(16))
+        request.tag = ''.join(random.choice(string.letters + string.digits)
+            for x in xrange(16))
     else:
         request.tag = tag
 
@@ -140,10 +140,10 @@ def application(environ, start_response):
     else:
         # Dispatch
         response = Response(status=STATUS_NOT_FOUND)
-        for pattern in urlpatterns:
-            m = re.match(pattern[0], request.path)
-            if m:
-                response = pattern[1](request, **m.groupdict())
+        for pattern in URLPATTERNS:
+            match = re.match(pattern[0], request.path)
+            if match:
+                response = pattern[1](request, **match.groupdict())
 
     if not tag:
         response.cookies[b'chatterbox'] = request.tag.encode('utf-8')
@@ -183,7 +183,8 @@ def chat(request, channel=None):
                         yield u'data: {}\n'.format(line).encode('utf-8')
                     yield u'\n'.encode('utf-8')
 
-        post_message(request, '{} connected.'.format(get_nick(request)), 'join', sender='Notice')
+        post_message(request, '{} connected.'.format(get_nick(request)), 'join',
+            sender='Notice')
 
         response = Response(_iterator(), content_type='text/event-stream')
         response.headers['Cache-Control'] = 'no-cache'
@@ -192,8 +193,8 @@ def chat(request, channel=None):
 
         nick = get_nick(request)
 
-        mode = request.QUERY_DATA.get('mode', ['message'])[0]
-        msg = request.QUERY_DATA.get('message', [''])[0]
+        mode = request.query_data.get('mode', ['message'])[0]
+        msg = request.query_data.get('message', [''])[0]
         msg = bleach.linkify(strip_tags(msg), callbacks=[linkify_external,])
 
         if mode == 'nick' and msg:
@@ -202,16 +203,17 @@ def chat(request, channel=None):
             except ValueError:
                 post_message(request, 'Nick in use!', 'alert', sender='Notice')
             else:
-                post_message(request, '{} is now known as {}'.format(nick, new_nick),
+                post_message(request,
+                    '{} is now known as {}'.format(nick, new_nick),
                     mode='nick',
-                    sender='Notice'
+                    sender='Notice',
                 )
 
         elif mode == 'names':
             post_message(request, get_nicks(request).keys(), 'names')
 
         elif mode == 'msg':
-            target = request.QUERY_DATA['target'][0]
+            target = request.query_data['target'][0]
             nicks = get_nicks(request)
             _, target_tag, _ = nicks[target].split(':')
             post_message(request, msg, 'msg', target=target,
@@ -243,7 +245,7 @@ def static(request, filename):
     except:
         return Response(status=STATUS_NOT_FOUND)
 
-urlpatterns = [
+URLPATTERNS = [
     (r'^/$', index, ),
     (r'^/static/(?P<filename>.*)$', static,),
     (r'^/(?P<channel>.+)/$', chat, ),

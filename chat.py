@@ -111,6 +111,8 @@ class Request(object):
             if not size:
                 return {}
             src = parse_qs(self.environ['wsgi.input'].read(size))
+        else:
+            return {}
         return {
             k.decode('utf-8'): [x.decode('utf-8') for x in v]
             for k, v in src.items()

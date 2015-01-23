@@ -1,7 +1,6 @@
-from __future__ import unicode_literals
 
-from Cookie import SimpleCookie
 from functools import partial
+from http.cookies import SimpleCookie
 import json
 import mimetypes
 import os.path
@@ -9,13 +8,14 @@ import random
 import re
 import string
 import time
-from urlparse import parse_qs
+from urllib.parse import parse_qs
 
 import bleach
 import redis
 
 import logging
 
+ROOT = os.path.dirname(__file__)
 POOL = redis.ConnectionPool()
 
 RATE_LIMIT_DURATION = 60
@@ -27,8 +27,7 @@ STATUS_METHOD_NOT_ALLOWED = '405 Method not allowed'
 STATUS_RATE_LIMITED = '429 Too Many Requests'
 
 def get_template(name):
-    with open(os.path.join('templates/', name), 'rb') as fin:
-        return fin.read()
+    return open(os.path.join('templates/', name), 'rb')
 
 # Nick handling
 
@@ -119,9 +118,9 @@ class Response(object):
 def application(environ, start_response):
     request = Request(environ)
 
-    tag = request.cookies.get(b'chatterbox')
+    tag = request.cookies.get('chatterbox')
     if not tag:
-        request.tag = ''.join(random.choice(string.letters + string.digits)
+        request.tag = ''.join(random.choice(string.ascii_letters + string.digits)
                               for x in range(16))
     else:
         request.tag = tag
@@ -145,8 +144,8 @@ def application(environ, start_response):
                 response = pattern[1](request, **match.groupdict())
 
     if not tag:
-        response.cookies[b'chatterbox'] = request.tag.encode('utf-8')
-        response.cookies[b'chatterbox']['path'] = '/'
+        response.cookies['chatterbox'] = request.tag.encode('utf-8')
+        response.cookies['chatterbox']['path'] = b'/'
 
     headers = list(response.headers.items()) + [
         ('Set-Cookie', cookie.OutputString())
@@ -156,9 +155,8 @@ def application(environ, start_response):
     start_response(response.status, headers)
     return response.content
 
-
 def index(request):
-    return Response(get_template('index.html'))
+    return Response(get_template('chat.html'))
 
 def chat(request, channel=None):
     request.channel = channel
@@ -234,10 +232,10 @@ def chat(request, channel=None):
 
 def static(request, filename):
     try:
-        fin = open(os.path.join('static/', filename), 'rb')
+        fin = open(os.path.join(ROOT, 'static/', filename), 'rb')
         content_type, encoding = mimetypes.guess_type(filename)
         content_type = content_type or 'application/octet-stream'
-        return Response(fin.read(), content_type=content_type)
+        return Response(fin, content_type=content_type)
     except:
         return Response(status=STATUS_NOT_FOUND)
 

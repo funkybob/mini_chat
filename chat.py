@@ -1,4 +1,3 @@
-
 from functools import partial
 from http.cookies import SimpleCookie
 import json
@@ -26,19 +25,21 @@ STATUS_NOT_FOUND = '404 Not Found'
 STATUS_METHOD_NOT_ALLOWED = '405 Method not allowed'
 STATUS_RATE_LIMITED = '429 Too Many Requests'
 
+
 def get_template(name):
     return open(os.path.join('templates/', name), 'rb')
 
-# Nick handling
-
 make_key = lambda *args: ':'.join(args)
 
+
+# Nick handling
 def get_nicks(request):
     keys = request.conn.keys(make_key(request.channel, '*', 'nick'))
     return {
         k.decode('utf-8'): v.decode('utf-8')
         for k, v in zip(request.conn.mget(keys), keys)
     } if keys else {}
+
 
 def get_nick(request):
     key = make_key(request.channel, request.tag, 'nick')
@@ -50,6 +51,7 @@ def get_nick(request):
         request.conn.expire(key, 90)
     return nick
 
+
 def set_nick(request, name):
     name = strip_tags(name)
     if name in get_nicks(request):
@@ -58,8 +60,8 @@ def set_nick(request, name):
     request.conn.set(key, name, ex=90)
     return name
 
-# Message handling
 
+# Message handling
 def post_message(request, message, mode='message', queue=None, **data):
     if queue is None:
         queue = make_key(request.channel, 'channel')
@@ -72,12 +74,13 @@ def post_message(request, message, mode='message', queue=None, **data):
 
 strip_tags = partial(bleach.clean, tags=[], strip=True)
 
+
 def linkify_external(attrs, new=False):
     attrs['target'] = '_blank'
     return attrs
 
-# The application!
 
+# The application!
 class Request(object):
     def __init__(self, environ):
         self.environ = environ
@@ -108,7 +111,10 @@ class Request(object):
             if not size:
                 return {}
             src = parse_qs(self.environ['wsgi.input'].read(size))
-        return {k.decode('utf-8') : [x.decode('utf-8') for x in v] for k, v in src.items()}
+        return {
+            k.decode('utf-8'): [x.decode('utf-8') for x in v]
+            for k, v in src.items()
+        }
 
 
 class Response(object):
@@ -125,8 +131,9 @@ def application(environ, start_response):
 
     tag = request.cookies.get('chatterbox')
     if not tag:
-        request.tag = ''.join(random.choice(string.ascii_letters + string.digits)
-                              for x in range(16))
+        request.tag = ''.join(
+            random.choice(string.ascii_letters + string.digits)
+            for x in range(16))
     else:
         request.tag = tag
 
@@ -160,8 +167,10 @@ def application(environ, start_response):
     start_response(response.status, headers)
     return response.content
 
+
 def index(request):
     return Response(get_template('chat.html'))
+
 
 def chat(request, channel=None):
     request.channel = channel
@@ -234,6 +243,7 @@ def chat(request, channel=None):
         response = Response(status=STATUS_METHOD_NOT_ALLOWED)
 
     return response
+
 
 def static(request, filename):
     try:

@@ -204,4 +204,4 @@ var ChatterBox = (function () {
     };
 })();
 
-document.addEventListener('DOMContentLoaded', function () { ChatterBox.init('.'); }, false);
+document.addEventListener('DOMContentLoaded', function () { ChatterBox.init(document.location.hash.replace('#', '')); }, false);

@@ -31,11 +31,14 @@ def get_template(name):
 
 # Nick handling
 
-make_key = lambda *args: u':'.join(args)
+make_key = lambda *args: ':'.join(args)
 
 def get_nicks(request):
     keys = request.conn.keys(make_key(request.channel, '*', 'nick'))
-    return dict(zip(request.conn.mget(keys), keys)) if keys else {}
+    return {
+        k.decode('utf-8'): v.decode('utf-8')
+        for k, v in zip(request.conn.mget(keys), keys)
+    } if keys else {}
 
 def get_nick(request):
     key = make_key(request.channel, request.tag, 'nick')
@@ -43,6 +46,7 @@ def get_nick(request):
     if nick is None:
         nick = set_nick(request, request.tag[:8])
     else:
+        nick = nick.decode('utf-8')
         request.conn.expire(key, 90)
     return nick
 
@@ -97,13 +101,14 @@ class Request(object):
 
     def parse_query_data(self):
         if self.method == 'GET':
-            return parse_qs(self.environ.get('QUERY_STRING', ''))
+            src = parse_qs(self.environ.get('QUERY_STRING', ''))
         elif self.method == 'POST':
             # Should test content type
             size = int(self.environ.get('CONTENT_LENGTH', 0))
             if not size:
                 return {}
-            return parse_qs(self.environ['wsgi.input'].read(size))
+            src = parse_qs(self.environ['wsgi.input'].read(size))
+        return {k.decode('utf-8') : [x.decode('utf-8') for x in v] for k, v in src.items()}
 
 
 class Response(object):
@@ -144,7 +149,7 @@ def application(environ, start_response):
                 response = pattern[1](request, **match.groupdict())
 
     if not tag:
-        response.cookies['chatterbox'] = request.tag.encode('utf-8')
+        response.cookies['chatterbox'] = request.tag
         response.cookies['chatterbox']['path'] = b'/'
 
     headers = list(response.headers.items()) + [
@@ -174,11 +179,11 @@ def chat(request, channel=None):
         def _iterator():
             for msg in pubsub.listen():
                 if msg['type'] == 'message':
-                    mode, data = json.loads(msg['data'])
-                    yield u'event: {}\n'.format(mode).encode('utf-8')
+                    mode, data = json.loads(msg['data'].decode('utf-8'))
+                    yield 'event: {}\n'.format(mode).encode('utf-8')
                     for line in data.splitlines():
-                        yield u'data: {}\n'.format(line).encode('utf-8')
-                    yield u'\n'.encode('utf-8')
+                        yield 'data: {}\n'.format(line).encode('utf-8')
+                    yield '\n'.encode('utf-8')
 
         post_message(request, '{} connected.'.format(get_nick(request)),
                      'join', sender='Notice')
@@ -206,7 +211,7 @@ def chat(request, channel=None):
                              sender='Notice')
 
         elif mode == 'names':
-            post_message(request, get_nicks(request).keys(), 'names')
+            post_message(request, list(get_nicks(request).keys()), 'names')
 
         elif mode == 'msg':
             target = request.query_data['target'][0]

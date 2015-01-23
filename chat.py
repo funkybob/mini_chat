@@ -147,7 +147,7 @@ def application(environ, start_response):
 
     if not tag:
         response.cookies[b'chatterbox'] = request.tag.encode('utf-8')
-        response.cookies['chatterbox']['path'] = '/'
+        response.cookies[b'chatterbox']['path'] = '/'
 
     headers = list(response.headers.items()) + [
         ('Set-Cookie', cookie.OutputString())
@@ -250,4 +250,3 @@ URLPATTERNS = [
     (r'^/static/(?P<filename>.*)$', static,),
     (r'^/(?P<channel>.+)/$', chat, ),
 ]
-

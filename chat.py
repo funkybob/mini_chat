@@ -27,13 +27,12 @@ STATUS_METHOD_NOT_ALLOWED = '405 Method not allowed'
 STATUS_RATE_LIMITED = '429 Too Many Requests'
 
 def get_template(name):
-    with file(os.path.join('templates/', name), 'rb') as fin:
+    with open(os.path.join('templates/', name), 'rb') as fin:
         return fin.read()
 
 # Nick handling
 
-def make_key(*args):
-    return u':'.join(args)
+make_key = lambda *args: u':'.join(args)
 
 def get_nicks(request):
     keys = request.conn.keys(make_key(request.channel, '*', 'nick'))
@@ -95,7 +94,7 @@ class Request(object):
         else:
             cookies = SimpleCookie()
             cookies.load(cookie_data)
-            return { key: cookies.get(key).value for key in cookies.keys() }
+            return {key: cookies.get(key).value for key in cookies.keys()}
 
     def parse_query_data(self):
         if self.method == 'GET':
@@ -123,7 +122,7 @@ def application(environ, start_response):
     tag = request.cookies.get(b'chatterbox')
     if not tag:
         request.tag = ''.join(random.choice(string.letters + string.digits)
-            for x in xrange(16))
+                              for x in range(16))
     else:
         request.tag = tag
 
@@ -165,7 +164,7 @@ def chat(request, channel=None):
     request.channel = channel
 
     if request.method == 'GET':
-        if not 'text/event-stream' in request.environ['HTTP_ACCEPT']:
+        if 'text/event-stream' not in request.environ['HTTP_ACCEPT']:
             return Response(get_template('chat.html'))
 
         pubsub = request.conn.pubsub()
@@ -183,8 +182,8 @@ def chat(request, channel=None):
                         yield u'data: {}\n'.format(line).encode('utf-8')
                     yield u'\n'.encode('utf-8')
 
-        post_message(request, '{} connected.'.format(get_nick(request)), 'join',
-            sender='Notice')
+        post_message(request, '{} connected.'.format(get_nick(request)),
+                     'join', sender='Notice')
 
         response = Response(_iterator(), content_type='text/event-stream')
         response.headers['Cache-Control'] = 'no-cache'
@@ -195,7 +194,7 @@ def chat(request, channel=None):
 
         mode = request.query_data.get('mode', ['message'])[0]
         msg = request.query_data.get('message', [''])[0]
-        msg = bleach.linkify(strip_tags(msg), callbacks=[linkify_external,])
+        msg = bleach.linkify(strip_tags(msg), callbacks=[linkify_external])
 
         if mode == 'nick' and msg:
             try:
@@ -204,10 +203,9 @@ def chat(request, channel=None):
                 post_message(request, 'Nick in use!', 'alert', sender='Notice')
             else:
                 post_message(request,
-                    '{} is now known as {}'.format(nick, new_nick),
-                    mode='nick',
-                    sender='Notice',
-                )
+                             '{} is now known as {}'.format(nick, new_nick),
+                             mode='nick',
+                             sender='Notice')
 
         elif mode == 'names':
             post_message(request, get_nicks(request).keys(), 'names')
@@ -217,11 +215,9 @@ def chat(request, channel=None):
             nicks = get_nicks(request)
             _, target_tag, _ = nicks[target].split(':')
             post_message(request, msg, 'msg', target=target,
-                queue=make_key(target_tag, 'private')
-            )
+                         queue=make_key(target_tag, 'private'))
             post_message(request, msg, 'msg', target=target,
-                queue=make_key(request.tag, 'private')
-            )
+                         queue=make_key(request.tag, 'private'))
 
         elif mode in ['message', 'action']:
             post_message(request, msg, mode)

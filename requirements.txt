@@ -1,2 +1,2 @@
-redis==2.9.0
-bleach==1.4
+redis==2.10.3
+bleach==1.4.1

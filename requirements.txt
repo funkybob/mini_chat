@@ -1,2 +1,4 @@
 redis==2.10.3
 bleach==1.4.1
+gunicorn==19.1.1
+eventlet==0.16.1

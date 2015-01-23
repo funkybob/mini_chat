@@ -121,14 +121,13 @@ class Response(object):
     def __init__(self, content=None, status=STATUS_OK, content_type=None):
         self.content = content or ''
         self.status = status
-        self.headers = {}
-        self.headers['Content-Type'] = content_type or 'text/html'
+        self.headers = {'Content-Type': content_type or 'text/html'}
         self.cookies = SimpleCookie()
 
 
 def application(environ, start_response):
     request = Request(environ)
-
+    # Session cookie
     tag = request.cookies.get('chatterbox')
     if not tag:
         request.tag = ''.join(
@@ -136,7 +135,6 @@ def application(environ, start_response):
             for x in range(16))
     else:
         request.tag = tag
-
     # Rate limiting
     key = make_key(request.tag, 'rated')
     now = int(time.time())
@@ -146,7 +144,6 @@ def application(environ, start_response):
     size = pipe.zcard(key).execute()[-1]
     if size > RATE_LIMIT:
         response = Response(status=STATUS_RATE_LIMITED)
-
     else:
         # Dispatch
         response = Response(status=STATUS_NOT_FOUND)

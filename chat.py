@@ -241,10 +241,9 @@ def chat(request, channel=None):
 def static(request, filename):
     try:
         fin = open(os.path.join(ROOT, 'static/', filename), 'rb')
-        content_type, encoding = mimetypes.guess_type(filename)
-        content_type = content_type or 'application/octet-stream'
-        return Response(fin, content_type=content_type)
-    except:
+        ctype, _ = mimetypes.guess_type(filename)
+        return Response(fin, content_type=ctype or 'application/octet-stream')
+    except IOError:
         return Response(status=STATUS_NOT_FOUND)
 
 URLPATTERNS = [

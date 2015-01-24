@@ -12,8 +12,6 @@ from urllib.parse import parse_qs
 import bleach
 import redis
 
-import logging
-
 ROOT = os.path.dirname(__file__)
 POOL = redis.ConnectionPool()
 
@@ -102,7 +100,6 @@ class Request(object):
 
     def parse_query_data(self):
         if self.method == 'POST':
-            # Should test content type
             size = int(self.environ.get('CONTENT_LENGTH', 0))
             if not size:
                 return {}
@@ -125,12 +122,8 @@ def application(environ, start_response):
     request = Request(environ)
     # Session cookie
     tag = request.cookies.get('chatterbox')
-    if not tag:
-        request.tag = ''.join(
-            random.choice(string.ascii_letters + string.digits)
-            for x in range(16))
-    else:
-        request.tag = tag
+    request.tag = tag or ''.join(random.choice(string.ascii_letters)
+                                 for x in range(16))
     # Rate limiting
     key = make_key(request.tag, 'rated')
     now = int(time.time())
@@ -140,8 +133,7 @@ def application(environ, start_response):
     size = pipe.zcard(key).execute()[-1]
     if size > RATE_LIMIT:
         response = Response(status=STATUS_RATE_LIMITED)
-    else:
-        # Dispatch
+    else:  # Dispatch
         response = Response(status=STATUS_NOT_FOUND)
         for pattern in URLPATTERNS:
             match = re.match(pattern[0], request.path)
@@ -228,7 +220,7 @@ def chat(request, channel=None):
             post_message(request, msg, mode)
 
         else:
-            logging.warning('Unknown message: %r', mode)
+            pass
 
         response = Response()
 

@@ -101,20 +101,16 @@ class Request(object):
         return {key: cookies.get(key).value for key in cookies.keys()}
 
     def parse_query_data(self):
-        if self.method == 'GET':
-            src = parse_qs(self.environ.get('QUERY_STRING', ''))
-        elif self.method == 'POST':
+        if self.method == 'POST':
             # Should test content type
             size = int(self.environ.get('CONTENT_LENGTH', 0))
             if not size:
                 return {}
             src = parse_qs(self.environ['wsgi.input'].read(size))
         else:
-            return {}
-        return {
-            k.decode('utf-8'): [x.decode('utf-8') for x in v]
-            for k, v in src.items()
-        }
+            src = parse_qs(self.environ.get('QUERY_STRING', ''))
+        return {k.decode('utf-8'): [x.decode('utf-8') for x in v]
+                for k, v in src.items()}
 
 
 class Response(object):

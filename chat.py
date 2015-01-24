@@ -95,12 +95,10 @@ class Request(object):
 
     def parse_cookies(self):
         cookie_data = self.environ.get('HTTP_COOKIE', '')
-        if cookie_data == '':
-            return {}
-        else:
-            cookies = SimpleCookie()
+        cookies = SimpleCookie()
+        if cookie_data:
             cookies.load(cookie_data)
-            return {key: cookies.get(key).value for key in cookies.keys()}
+        return {key: cookies.get(key).value for key in cookies.keys()}
 
     def parse_query_data(self):
         if self.method == 'GET':

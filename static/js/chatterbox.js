@@ -52,10 +52,17 @@ var ChatterBox = (function () {
         xhr.send(data.join('&'));
     };
 
+    function make_timestamp() {
+        var x = new Date();
+        return [x.getHours(), x.getMinutes(), x.getSeconds()].map(function (v) {
+            return (v < 10) ?  '0' + v.toString() : v.toString();
+        }).join(':');
+    }
+
     // Print message to screen
     function append_message(data, tmpl) {
         data.mode = tmpl;
-        data.when = data.when || moment().format('H:mm:ss');
+        data.when = data.when || make_timestamp();
         tmpl = template[tmpl] || template['message'];
         messages.innerHTML += tmpl.render(data);
         messages.scrollTop = 9999999;

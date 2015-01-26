@@ -12,7 +12,7 @@ html, body {
 
 h1 {
     font-size: 1em;
-    height: 30px;
+    line-height: 30px;
     vertical-align: top;
     margin: 0;
 }

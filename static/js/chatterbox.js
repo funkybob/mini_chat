@@ -17,8 +17,8 @@ function getCookie(name) {
 var csrftoken = getCookie('csrftoken');
 
 // Simple template renderer
-function Render(tmpl, data) {
-    return tmpl.replace(/\{(\w+)\}/g, function (match, key) { return data[key]; });
+String.prototype.render = function (data) {
+    return this.replace(/\{(\w+)\}/g, function (match, key) { return data[key]; });
 };
 
 // EventSource malarky
@@ -33,17 +33,6 @@ var ChatterBox = (function () {
         msg     : '<div class="message msg"><time>{when}</time><span><i>{sender}</i> &rArr; <i>{target}</i></span><p><em>{message}</em></p></div>'
     };
 
-    // Encode an obj to POST format
-    function postEncode(obj) {
-        var result = [];
-        for(var key in obj) {
-            if(obj.hasOwnProperty(key)) {
-                result.push(encodeURIComponent(key) + '=' + encodeURIComponent(obj[key]));
-            }
-        }
-        return result.join('&');
-    };
-
     // Send a message to server
     function send(message, mode, extra) {
         var xhr = new window.XMLHttpRequest();
@@ -52,18 +41,23 @@ var ChatterBox = (function () {
         extra.message = message;
         extra.mode = mode;
 
+        // Convert 'extra' to x-www-form-urlencoded
+        data = Object.keys(extra).map(function (key) {
+            return encodeURIComponent(key) + '=' + encodeURIComponent(extra[key]);
+        });
+
         xhr.open('POST', url);
         xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
         xhr.setRequestHeader("X-CSRFToken", csrftoken);
-        xhr.send(postEncode(extra));
+        xhr.send(data.join('&'));
     };
 
     // Print message to screen
     function append_message(data, tmpl) {
         data.mode = tmpl;
-        tmpl = template[tmpl] || template['message'];
         data.when = data.when || moment().format('H:mm:ss');
-        messages.innerHTML += Render(tmpl, data);
+        tmpl = template[tmpl] || template['message'];
+        messages.innerHTML += tmpl.render(data);
         messages.scrollTop = 9999999;
         Array.prototype.slice.call(
             messages.querySelectorAll('.message'), 0, -1000
@@ -84,6 +78,7 @@ var ChatterBox = (function () {
     modemap['open'] = function (event) {
         setStatus('ready');
         send('', 'names');
+        send('', 'topic');
     };
 
     modemap['error'] = function (event) {
@@ -107,6 +102,11 @@ var ChatterBox = (function () {
 
     modemap['msg'] = function (event) { parse_message(event, 'msg'); };
 
+    modemap['topic'] = function (event) {
+        var data = JSON.parse(event.data);
+        document.querySelector('h1 span').innerHTML = data.message;
+    };
+
     modemap['names'] = function (event) {
         var data = JSON.parse(event.data);
         var content = [];
@@ -119,11 +119,9 @@ var ChatterBox = (function () {
     function connect () {
         setStatus('connecting');
         source = new EventSource(url);
-        for(var key in modemap) {
-            if(modemap.hasOwnProperty(key)) {
-                source.addEventListener(key, modemap[key], false);
-            }
-        };
+        Object.keys(modemap).forEach(function (key) {
+            source.addEventListener(key, modemap[key], false);
+        });
     };
 
     function keypress(e) {
@@ -172,6 +170,10 @@ var ChatterBox = (function () {
                 mode = 'msg';
                 extra.target = match[1];
                 msg = match[2];
+                break;
+            case 'topic':
+                mode = 'topic';
+                msg = match[2] || '';
                 break;
             default:
                 break;

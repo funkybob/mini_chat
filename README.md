@@ -3,12 +3,11 @@
 A raw WSGI app to provide realtime web chat.
 
 Features:
-- Under 250 lines of code
-- Under 38k page weight [including images and unminified CSS/JS]
+- Under 265 lines of code
+- Under 14k page weight [including images and unminified CSS/JS]
 - Rate limiting per IP
 - Virtually unlimited channels
 - No frameworks
-- "moment.js" is the ONLY 3rd party JS lib [bundled]
 - sanitised user input
 - linkified links
 

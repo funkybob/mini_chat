@@ -27,7 +27,6 @@ h2 {
 header {
     background: linear-gradient(#1faac9, #b6dce5);
     height: 30px;
-    text-align: right;
     padding: 0 1em;
 }
 main {
@@ -52,7 +51,7 @@ footer {
     display: inline-block;
     height: 100%;
 }
-#nicks header {
+#nicks h2 {
     height: 24px;
     text-align: left;
     color: #333;

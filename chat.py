@@ -59,6 +59,17 @@ def set_nick(request, name):
     return name
 
 
+# Topic handling
+def set_topic(request, topic):
+    key = make_key(request.channel, 'topic')
+    request.conn.set(key, topic)
+
+
+def get_topic(request):
+    key = make_key(request.channel, 'topic')
+    return request.conn.get(key).decode('utf-8')
+
+
 # Message handling
 def post_message(request, message, mode='message', queue=None, **data):
     if queue is None:
@@ -218,6 +229,11 @@ def chat(request, channel=None):
 
         elif mode in ['message', 'action']:
             post_message(request, msg, mode)
+
+        elif mode == 'topic':
+            if msg:
+                set_topic(request, msg)
+            post_message(request, get_topic(request), 'topic')
 
         else:
             pass

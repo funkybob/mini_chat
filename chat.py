@@ -1,5 +1,6 @@
 from functools import partial
 from http.cookies import SimpleCookie
+from http.client import responses
 import json
 import mimetypes
 import os.path
@@ -17,11 +18,6 @@ POOL = redis.ConnectionPool()
 
 RATE_LIMIT_DURATION = 60
 RATE_LIMIT = 10
-
-STATUS_OK = '200 OK'
-STATUS_NOT_FOUND = '404 Not Found'
-STATUS_METHOD_NOT_ALLOWED = '405 Method not allowed'
-STATUS_RATE_LIMITED = '429 Too Many Requests'
 
 
 def get_template(name):
@@ -122,9 +118,9 @@ class Request(object):
 
 
 class Response(object):
-    def __init__(self, content=None, status=STATUS_OK, content_type=None):
-        self.content = content or ''
-        self.status = status
+    def __init__(self, content=None, status=200, content_type=None):
+        self.content = content or []
+        self.status = '{} {}'.format(status, responses[status])
         self.headers = {'Content-Type': content_type or 'text/html'}
         self.cookies = SimpleCookie()
 
@@ -143,9 +139,9 @@ def application(environ, start_response):
     pipe.zremrangebyscore(key, '-inf', now - RATE_LIMIT_DURATION)
     size = pipe.zcard(key).execute()[-1]
     if size > RATE_LIMIT:
-        response = Response(status=STATUS_RATE_LIMITED)
+        response = Response(status=429)
     else:  # Dispatch
-        response = Response(status=STATUS_NOT_FOUND)
+        response = Response(status=404)
         for pattern in URLPATTERNS:
             match = re.match(pattern[0], request.path)
             if match:
@@ -241,7 +237,7 @@ def chat(request, channel=None):
         response = Response()
 
     else:
-        response = Response(status=STATUS_METHOD_NOT_ALLOWED)
+        response = Response(status=405)
 
     return response
 
@@ -252,7 +248,7 @@ def static(request, filename):
         ctype, _ = mimetypes.guess_type(filename)
         return Response(fin, content_type=ctype or 'application/octet-stream')
     except IOError:
-        return Response(status=STATUS_NOT_FOUND)
+        return Response(status=404)
 
 URLPATTERNS = [
     (r'^/$', index, ),
